@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>漫画管理系统</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+            margin: 0;
+            padding: 24px;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+        }
+        h1 { margin-top: 0; color: #e94560; }
+        .root-info { color: #888; font-size: 14px; margin-bottom: 24px; }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 20px;
+        }
+        .card {
+            background: #16213e;
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            text-decoration: none;
+            color: #eee;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(233, 69, 96, 0.3);
+        }
+        .card .cover {
+            width: 100%;
+            aspect-ratio: 3/4;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            background: #0f0f1a;
+        }
+        .card .cover-placeholder {
+            width: 100%;
+            aspect-ratio: 3/4;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            background: #0f0f1a;
+        }
+        .card .title { font-weight: 600; word-break: break-all; }
+    </style>
+</head>
+<body>
+    <h1>漫画管理系统</h1>
+    <p class="root-info">漫画目录：{{ comic_root }}</p>
+    <div class="grid" id="comics"></div>
+    <script>
+        const baseUrl = '{{ base_url }}';
+        fetch(baseUrl + '/api/comics')
+            .then(r => r.json())
+            .then(comics => {
+                const el = document.getElementById('comics');
+                if (!comics.length) {
+                    el.innerHTML = '<p>暂无漫画，请将漫画放在上述目录的子文件夹中（每文件夹一本）。</p>';
+                    return;
+                }
+                el.innerHTML = comics.map(c => {
+                    const coverUrl = c.cover_filename
+                        ? baseUrl + '/api/comics/' + encodeURIComponent(c.id) + '/pages/' + encodeURIComponent(c.cover_filename)
+                        : '';
+                    const coverHtml = coverUrl
+                        ? '<img class="cover" src="' + coverUrl + '" alt="" loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\';">' +
+                          '<div class="cover-placeholder" style="display:none;">📚</div>'
+                        : '<div class="cover-placeholder">📚</div>';
+                    return '<a class="card" href="' + baseUrl + '/reader/' + encodeURIComponent(c.id) + '">' +
+                        coverHtml +
+                        '<div class="title">' + escapeHtml(c.title) + '</div></a>';
+                }).join('');
+            })
+            .catch(e => {
+                document.getElementById('comics').innerHTML = '<p>加载失败：' + e.message + '</p>';
+            });
+        function escapeHtml(s) {
+            const div = document.createElement('div');
+            div.textContent = s;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
