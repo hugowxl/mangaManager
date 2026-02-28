@@ -30,18 +30,17 @@
         .toolbar a { color: #e94560; text-decoration: none; }
         .toolbar a:hover { text-decoration: underline; }
         .page-info { color: #888; }
-        /* 漫画区域：初始一屏适应，缩放后可滚动 */
+        /* 漫画区域：用 margin:auto 居中，放大后四向可滚动且保持居中 */
         .viewer {
             flex: 1;
             min-height: 0;
             display: flex;
-            align-items: center;
-            justify-content: center;
             overflow: auto;
         }
         .viewer img {
             display: block;
             max-width: none;
+            margin: auto;
             user-select: none;
             -webkit-user-drag: none;
         }
