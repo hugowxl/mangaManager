@@ -103,6 +103,7 @@
         const ZOOM_STEP = 1.25;
         const ZOOM_MIN = 0.3;
         const ZOOM_MAX = 5;
+        let isFirstImageLoad = true;
 
         function loadPages() {
             return fetch(baseUrl + '/api/comics/' + encodeURIComponent(comicId) + '/pages')
@@ -121,8 +122,13 @@
             updatePanCursor();
         }
         function onImageLoad() {
-            zoom = 1;
+            if (isFirstImageLoad) {
+                zoom = 1;
+                isFirstImageLoad = false;
+            }
             applyZoom();
+            viewerEl.scrollTop = 0;
+            viewerEl.scrollLeft = 0;
         }
         function updatePage() {
             if (!pages.length) return;
