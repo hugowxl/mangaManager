@@ -78,6 +78,83 @@
         .float-nav .btn-prev:hover:not(:disabled) { transform: translateY(-50%) scale(1.05); }
         .float-nav .btn-next { right: 16px; top: 50%; transform: translateY(-50%); }
         .float-nav .btn-next:hover:not(:disabled) { transform: translateY(-50%) scale(1.05); }
+        /* 底部页数跳转栏 */
+        .page-jump-bar {
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 0;
+            flex-wrap: wrap;
+            border-top: 1px solid #333;
+        }
+        .page-links {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+        .page-links a, .page-links span {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 28px;
+            height: 28px;
+            padding: 0 6px;
+            border-radius: 6px;
+            font-size: 14px;
+            text-decoration: none;
+            color: #aaa;
+            transition: background 0.2s, color 0.2s;
+        }
+        .page-links a:hover {
+            background: rgba(233, 69, 96, 0.3);
+            color: #eee;
+        }
+        .page-links a.active {
+            background: #e94560;
+            color: #fff;
+        }
+        .page-links .ellipsis {
+            color: #666;
+            cursor: default;
+        }
+        .page-jump-input {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-left: 12px;
+        }
+        .page-jump-input input {
+            width: 56px;
+            height: 28px;
+            padding: 0 8px;
+            border: 1px solid #444;
+            border-radius: 6px;
+            background: #1a1a2e;
+            color: #eee;
+            font-size: 14px;
+            text-align: center;
+        }
+        .page-jump-input input:focus {
+            outline: none;
+            border-color: #e94560;
+        }
+        .page-jump-input button {
+            height: 28px;
+            padding: 0 14px;
+            border: 1px solid #e94560;
+            border-radius: 6px;
+            background: rgba(233, 69, 96, 0.3);
+            color: #eee;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .page-jump-input button:hover {
+            background: #e94560;
+        }
     </style>
 </head>
 <body>
@@ -87,6 +164,13 @@
     </div>
     <div class="viewer">
         <img id="pageImg" alt="漫画页" />
+    </div>
+    <div class="page-jump-bar">
+        <div class="page-links" id="pageLinks"></div>
+        <div class="page-jump-input">
+            <input type="number" id="pageInput" min="1" placeholder="页" />
+            <button id="jumpBtn">跳转</button>
+        </div>
     </div>
     <nav class="float-nav" aria-label="翻页">
         <button id="prev" class="btn-prev">上一页</button>
@@ -140,12 +224,42 @@
             document.getElementById('pageInfo').textContent = `第 ${currentIndex + 1} / ${pages.length} 页`;
             document.getElementById('prev').disabled = currentIndex === 0;
             document.getElementById('next').disabled = currentIndex === pages.length - 1;
+            renderPageLinks();
+        }
+        function renderPageLinks() {
+            const container = document.getElementById('pageLinks');
+            if (!pages.length) { container.innerHTML = ''; return; }
+            const total = pages.length;
+            const items = [];
+            if (total <= 7) {
+                for (let i = 1; i <= total; i++) items.push(i);
+            } else {
+                items.push(1, 2, 3, 4, '...', total - 2, total - 1, total);
+            }
+            container.innerHTML = items.map(item => {
+                if (item === '...') {
+                    return '<span class="ellipsis">…</span>';
+                }
+                const isActive = item === currentIndex + 1;
+                return `<a href="#" class="${isActive ? 'active' : ''}" data-page="${item}">${item}</a>`;
+            }).join('');
+            container.querySelectorAll('a[data-page]').forEach(a => {
+                a.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const p = parseInt(this.dataset.page, 10);
+                    if (p >= 1 && p <= total) {
+                        currentIndex = p - 1;
+                        updatePage();
+                    }
+                });
+            });
         }
         loadPages().then(p => {
             pages = p;
             if (!pages.length) {
                 document.getElementById('pageInfo').textContent = '暂无页面';
                 pageImg.style.display = 'none';
+                document.querySelector('.page-jump-bar').style.display = 'none';
                 return;
             }
             currentIndex = 0;
@@ -179,6 +293,20 @@
 
         document.getElementById('prev').onclick = () => { if (currentIndex > 0) { currentIndex--; updatePage(); } };
         document.getElementById('next').onclick = () => { if (currentIndex < pages.length - 1) { currentIndex++; updatePage(); } };
+
+        document.getElementById('jumpBtn').onclick = function() {
+            if (!pages.length) return;
+            const input = document.getElementById('pageInput');
+            let p = parseInt(input.value, 10);
+            if (isNaN(p) || p < 1) p = 1;
+            if (p > pages.length) p = pages.length;
+            currentIndex = p - 1;
+            updatePage();
+            input.value = '';
+        };
+        document.getElementById('pageInput').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') document.getElementById('jumpBtn').click();
+        });
 
         // 滚轮交互：下滑下一页、上滑上一页；Shift+下滑放大、Shift+上滑缩小；中键按下复原
         document.addEventListener('wheel', function(e) {
