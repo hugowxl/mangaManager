@@ -155,6 +155,36 @@
         .page-jump-input button:hover {
             background: #e94560;
         }
+        .mode-toggle-btn {
+            position: fixed;
+            top: 12px;
+            right: 24px;
+            z-index: 120;
+            padding: 6px 14px;
+            border-radius: 16px;
+            border: 1px solid #e94560;
+            background: rgba(22, 33, 62, 0.95);
+            color: #eee;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .mode-toggle-btn:hover {
+            background: #e94560;
+        }
+        #stripContainer {
+            width: 100%;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+            padding: 16px 0;
+        }
+        #stripContainer img.strip-page {
+            max-width: 100%;
+            height: auto;
+            margin: 0 auto;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+        }
     </style>
 </head>
 <body>
@@ -162,8 +192,10 @@
         <a href="{{ base_url }}/">← 返回列表</a>
         <span class="page-info" id="pageInfo">加载中…</span>
     </div>
+    <button id="modeToggle" class="mode-toggle-btn">条漫模式</button>
     <div class="viewer">
         <img id="pageImg" alt="漫画页" />
+        <div id="stripContainer"></div>
     </div>
     <div class="page-jump-bar">
         <div class="page-links" id="pageLinks"></div>
@@ -181,12 +213,17 @@
         const comicId = '{{ comic_id }}';
         const viewerEl = document.querySelector('.viewer');
         const pageImg = document.getElementById('pageImg');
+        const stripContainer = document.getElementById('stripContainer');
+        const modeToggleBtn = document.getElementById('modeToggle');
         let pages = [];
         let currentIndex = 0;
         let zoom = 1;
         const ZOOM_STEP = 1.25;
         const ZOOM_MIN = 0.3;
         const ZOOM_MAX = 5;
+        const STRIP_BATCH_SIZE = 10;  // 条漫模式下每次加载的页数
+        let stripLoadedCount = 0;     // 已加载到条漫容器中的页数
+        let mode = 'page';  // 'page' 单页翻页模式，'strip' 条漫模式
         let isFirstImageLoad = true;
 
         function loadPages() {
@@ -215,6 +252,7 @@
             viewerEl.scrollLeft = 0;
         }
         function updatePage() {
+            if (mode !== 'page') return;
             if (!pages.length) return;
             const page = pages[currentIndex];
             const url = baseUrl + '/api/comics/' + encodeURIComponent(comicId) + '/pages/' + encodeURIComponent(page.filename);
@@ -254,12 +292,60 @@
                 });
             });
         }
+        function resetStripPages() {
+            stripContainer.innerHTML = '';
+            stripLoadedCount = 0;
+        }
+        function loadMoreStripPages() {
+            if (!pages.length) return;
+            if (stripLoadedCount >= pages.length) return;
+            const start = stripLoadedCount;
+            const end = Math.min(stripLoadedCount + STRIP_BATCH_SIZE, pages.length);
+            for (let i = start; i < end; i++) {
+                const page = pages[i];
+                const url = baseUrl + '/api/comics/' + encodeURIComponent(comicId) + '/pages/' + encodeURIComponent(page.filename);
+                const img = document.createElement('img');
+                img.src = url;
+                img.alt = '第 ' + (i + 1) + ' 页';
+                img.className = 'strip-page';
+                img.dataset.index = String(i);
+                stripContainer.appendChild(img);
+            }
+            stripLoadedCount = end;
+        }
+        function setMode(newMode) {
+            if (mode === newMode) return;
+            mode = newMode;
+            const floatNav = document.querySelector('.float-nav');
+            const jumpBar = document.querySelector('.page-jump-bar');
+            if (mode === 'strip') {
+                pageImg.style.display = 'none';
+                stripContainer.style.display = 'flex';
+                if (floatNav) floatNav.style.display = 'none';
+                if (jumpBar) jumpBar.style.display = 'none';
+                resetStripPages();
+                loadMoreStripPages();
+                viewerEl.scrollTop = 0;
+                viewerEl.scrollLeft = 0;
+                modeToggleBtn.textContent = '翻页模式';
+            } else {
+                pageImg.style.display = '';
+                stripContainer.style.display = 'none';
+                if (floatNav) floatNav.style.display = '';
+                if (jumpBar) jumpBar.style.display = '';
+                updatePage();
+                viewerEl.scrollTop = 0;
+                viewerEl.scrollLeft = 0;
+                modeToggleBtn.textContent = '条漫模式';
+            }
+        }
         loadPages().then(p => {
             pages = p;
             if (!pages.length) {
                 document.getElementById('pageInfo').textContent = '暂无页面';
                 pageImg.style.display = 'none';
-                document.querySelector('.page-jump-bar').style.display = 'none';
+                const jumpBar = document.querySelector('.page-jump-bar');
+                if (jumpBar) jumpBar.style.display = 'none';
                 return;
             }
             currentIndex = 0;
@@ -278,6 +364,7 @@
             viewerEl.classList.toggle('pan-cursor', canScroll);
         }
         viewerEl.addEventListener('mousedown', function(e) {
+            if (mode !== 'page') return;
             if (e.button !== 0) return;
             const canScroll = viewerEl.scrollWidth > viewerEl.clientWidth || viewerEl.scrollHeight > viewerEl.clientHeight;
             if (!canScroll) return;
@@ -291,8 +378,20 @@
         document.addEventListener('mouseup', function() { panStart = null; });
         document.addEventListener('mouseleave', function() { panStart = null; });
 
-        document.getElementById('prev').onclick = () => { if (currentIndex > 0) { currentIndex--; updatePage(); } };
-        document.getElementById('next').onclick = () => { if (currentIndex < pages.length - 1) { currentIndex++; updatePage(); } };
+        document.getElementById('prev').onclick = () => {
+            if (mode !== 'page') return;
+            if (currentIndex > 0) {
+                currentIndex--;
+                updatePage();
+            }
+        };
+        document.getElementById('next').onclick = () => {
+            if (mode !== 'page') return;
+            if (currentIndex < pages.length - 1) {
+                currentIndex++;
+                updatePage();
+            }
+        };
 
         document.getElementById('jumpBtn').onclick = function() {
             if (!pages.length) return;
@@ -301,15 +400,35 @@
             if (isNaN(p) || p < 1) p = 1;
             if (p > pages.length) p = pages.length;
             currentIndex = p - 1;
-            updatePage();
+            if (mode === 'strip') {
+                // 确保条漫容器已初始化
+                if (!stripContainer.children.length) {
+                    resetStripPages();
+                    loadMoreStripPages();
+                }
+                // 若目标页还未加载进来，则按批次继续加载直到包含该页
+                while (stripLoadedCount <= currentIndex && stripLoadedCount < pages.length) {
+                    loadMoreStripPages();
+                }
+                const target = stripContainer.querySelector('img[data-index="' + currentIndex + '"]');
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            } else {
+                updatePage();
+            }
             input.value = '';
         };
         document.getElementById('pageInput').addEventListener('keydown', function(e) {
             if (e.key === 'Enter') document.getElementById('jumpBtn').click();
         });
 
-        // 滚轮交互：下滑下一页、上滑上一页；Shift+下滑放大、Shift+上滑缩小；中键按下复原
+        // 滚轮交互：单页模式下下滑下一页、上滑上一页；Shift+下滑放大、Shift+上滑缩小；中键按下复原
         document.addEventListener('wheel', function(e) {
+            if (mode === 'strip') {
+                // 条漫模式下保留默认滚动行为，仅可选处理 Shift 情况
+                return;
+            }
             if (e.shiftKey) {
                 e.preventDefault();
                 if (e.deltaY > 0) {
@@ -329,12 +448,24 @@
                 }
             }
         }, { passive: false });
+        // 条漫模式下接近底部时按批次追加后续页面，避免一次性加载全部撑爆内存
+        viewerEl.addEventListener('scroll', function() {
+            if (mode !== 'strip') return;
+            if (stripLoadedCount >= pages.length) return;
+            const threshold = 400;
+            if (viewerEl.scrollTop + viewerEl.clientHeight + threshold >= viewerEl.scrollHeight) {
+                loadMoreStripPages();
+            }
+        });
         document.addEventListener('mousedown', function(e) {
             if (e.button === 1) {
                 e.preventDefault();
                 zoom = 1;
                 applyZoom();
             }
+        });
+        modeToggleBtn.addEventListener('click', function() {
+            setMode(mode === 'page' ? 'strip' : 'page');
         });
     </script>
 </body>
